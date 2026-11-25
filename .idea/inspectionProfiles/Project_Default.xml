@@ -1,0 +1,33 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="Eslint" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="fastapi" />
+          <option value="uvicorn" />
+          <option value="sqlalchemy" />
+          <option value="psycopg2-binary" />
+          <option value="passlib" />
+          <option value="bcrypt" />
+          <option value="celery" />
+          <option value="redis" />
+          <option value="alembic" />
+          <option value="httpx" />
+          <option value="pydantic-settings" />
+          <option value="pydantic" />
+          <option value="pyjwt" />
+          <option value="python-multipart" />
+          <option value="prometheus-fastapi-instrumentator" />
+          <option value="apscheduler" />
+          <option value="pandas" />
+          <option value="vaderSentiment" />
+          <option value="reportlab" />
+          <option value="matplotlib" />
+          <option value="telnyx" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

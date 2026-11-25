@@ -1,0 +1,7 @@
+.git
+.idea
+.env
+data
+runtime
+__pycache__
+test

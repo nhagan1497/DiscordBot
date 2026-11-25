@@ -1,0 +1,58 @@
+services:
+  bot:
+    build:
+      context: .
+      target: bot
+    init: true
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN:?Set DISCORD_TOKEN}
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID:?Set SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET:?Set SPOTIFY_CLIENT_SECRET}
+    depends_on:
+      player:
+        condition: service_healthy
+      pairing:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - bot-data:/app/data
+      - soloist-audio:/run/soloist-audio:ro
+  player:
+    build:
+      context: .
+      target: soloist
+    platform: linux/amd64
+    init: true
+    environment:
+      SOLOIST_API_KEY: ${SOLOIST_API_KEY:?Set SOLOIST_API_KEY}
+    depends_on:
+      pairing:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:3001/health', timeout=1).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+    volumes:
+      - soloist-audio:/run/soloist-audio
+      - type: bind
+        source: ./runtime/soloist-data
+        target: /app/data
+        bind:
+          create_host_path: false
+  pairing:
+    build:
+      context: .
+      target: pairing
+    platform: linux/amd64
+    init: true
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:6081/health', timeout=1).close()"]
+      interval: 3s
+      timeout: 2s
+      retries: 10
+volumes:
+  bot-data:
+  soloist-audio:

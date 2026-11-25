@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block content %}
+{% if waiting %}
+<p>Waiting for Spotify Connect.</p>
+{% else %}
+<p>{{ notice }}</p>
+<p><a href="/" target="_top">Return to Administration</a></p>
+{% endif %}
+{% endblock %}

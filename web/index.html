@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% macro track_name(track) -%}
+  {{ track.title }}{% if track.artist %} — {{ track.artist }}{% endif %}
+{%- endmacro %}
+{% block content %}
+<header class="page-header">
+  <h1>Administration</h1>
+</header>
+{% if notice %}<p id="notice" role="status">{{ notice }}</p>{% endif %}
+<div class="dashboard">
+  {% if state.pairing %}
+  {% set identifier, member = state.pairing %}
+  <section class="desktop-open">
+    <h2>Spotify pairing</h2>
+    <p>Sign into Spotify, then select Discord Music {{ member }} in the device picker.</p>
+    <iframe title="Spotify pairing" src="/pairing-desktop/{{ identifier }}/vnc.html?autoconnect=1&amp;resize=scale&amp;path=websockify"></iframe>
+    <iframe class="pairing-status" title="Pairing status" src="/pairing-status"></iframe>
+    <form method="post" action="/cancel"><button class="secondary">Cancel pairing</button></form>
+  </section>
+  {% endif %}
+  <section>
+    <h2>Spotify profiles</h2>
+    <ul class="profiles">
+      {% for profile in state.profiles %}
+      <li>
+        <div>
+          <strong>{{ profile.name }}</strong>
+          <small>{{ 'Paired' if profile.paired else 'Unpaired' }} · {{ profile.id }}</small>
+        </div>
+        <form method="post" action="/pair/{{ profile.id }}">
+          <button{% if state.pairing or (state.host and state.host.id == profile.id) %} disabled{% endif %}>{{ 'Pair again' if profile.paired else 'Pair' }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% if not state.profiles %}<p>Use /music status in Discord to create a profile.</p>{% endif %}
+  </section>
+  <section class="playback" id="playback">
+    <div class="section-heading">
+      <h2>Playback</h2>
+      <form method="get" action="/#playback"><button class="secondary">Refresh</button></form>
+    </div>
+    <div class="now-playing">
+      <div class="record" aria-hidden="true"></div>
+      <div>
+        <small>{% if host_name %}Hosted by {{ host_name }}{% else %}No active session{% endif %}</small>
+        <p class="track-title">{{ track_name(state.current) if state.current else 'Nothing is playing.' }}</p>
+        {% if state.status %}<small>{{ state.status|capitalize }}</small>{% endif %}
+      </div>
+    </div>
+    {% if playback_notice %}<p role="status" class="playback-notice">{{ playback_notice }}</p>{% endif %}
+    {% if state.playbackError %}<p role="status" class="playback-notice">{{ state.playbackError }}</p>{% endif %}
+    {% if state.host %}
+    <form class="actions" method="post">
+      <button formaction="/playback/{{ state.host.id }}/pause">Pause</button>
+      <button formaction="/playback/{{ state.host.id }}/resume">Resume</button>
+      <button class="secondary" formaction="/playback/{{ state.host.id }}/skip">Skip</button>
+    </form>
+    {% endif %}
+    <div class="section-heading queue-heading">
+      <h3>Queue</h3>
+      {% if state.queue %}<small>{{ state.queue|length }} upcoming</small>{% endif %}
+    </div>
+    {% if state.host %}
+    <details class="clear-queue">
+      <summary>Clear queue in Spotify</summary>
+      <p>On the host’s Spotify account, open Queue and select Clear queue. Tracks from the current album or playlist and Autoplay can still appear.</p>
+      <a href="https://open.spotify.com/" target="_blank" rel="noopener">Open Spotify</a>
+    </details>
+    {% endif %}
+    {% if state.queue %}
+    {% set sources = {'queue': 'Queued', 'context': 'Album or playlist', 'autoplay': 'Autoplay'} %}
+    <ol class="track-list">
+      {% for track in state.queue %}
+      <li><div>{{ track_name(track) }}{% if track.source in sources %}<small>{{ sources[track.source] }}</small>{% endif %}</div></li>
+      {% endfor %}
+    </ol>
+    {% else %}<p>The queue is empty.</p>{% endif %}
+  </section>
+</div>
+{% endblock %}
