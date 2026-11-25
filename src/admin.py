@@ -15,6 +15,7 @@ WEB = Path(__file__).resolve().parent.parent / 'web'
 TEMPLATES = Environment(loader=FileSystemLoader(WEB), autoescape=select_autoescape())
 PLAYBACK_NOTICES = {'pause': 'Pause sent to Spotify.', 'resume': 'Resume sent to Spotify.',
                     'skip': 'Skip sent to Spotify.'}
+SEARCH_NOTICES = {'queued': 'Added to the Spotify queue.', 'played': 'Sent play to Spotify.'}
 
 
 def page(template, **context):
@@ -49,24 +50,48 @@ class Admin:
     async def state_json(self, request):
         return web.json_response(await self.state(request))
 
-    async def index(self, request, playback_notice=None):
+    async def index(self, request, playback_notice=None, *, search_query=None, search_notice=None):
         state = await self.state(request)
         host = state['host']
         host_name = self.bot.profiles.get(host['id'], host['id']) if host else None
+        query = (request.query.get('q', '') if search_query is None else search_query).strip()
+        tracks, search_error = [], None
+        if len(query) > 160:
+            search_error = 'Search must be 160 characters or fewer.'
+        elif query:
+            try:
+                tracks = await self.bot.catalog.search(query)
+            except Problem as error:
+                search_error = str(error)
         return page('index.html', state=state, host_name=host_name, notice=self.notice,
-                    playback_notice=playback_notice or PLAYBACK_NOTICES.get(request.query.get('playback')))
+                    playback_notice=playback_notice or PLAYBACK_NOTICES.get(request.query.get('playback')),
+                    search_query=query, tracks=tracks, search_error=search_error,
+                    search_notice=search_notice or SEARCH_NOTICES.get(request.query.get('added')))
 
     async def playback(self, request):
         if not self.same_origin(request):
             raise web.HTTPForbidden()
         member, action = request.match_info['member'], request.match_info['action']
+        params = {}
+        query = ''
+        if action == 'queue':
+            form = await request.post()
+            track, query = form.get('track', ''), form.get('q', '')
+            if not isinstance(track, str) or not isinstance(query, str):
+                raise web.HTTPBadRequest(text='Expected a track and search query.')
+            params['track'] = track
         try:
             async with self.bot.lock:
                 if self.bot.host != member or not self.bot.voice:
                     raise Problem('The active voice session changed. Refresh playback and try again.', 409)
-                await self.bot.player(member, action, 'POST')
+                result = await self.bot.player(member, action, 'POST', **params)
         except Problem as error:
+            if action == 'queue':
+                return await self.index(request, search_query=query, search_notice=str(error))
             return await self.index(request, playback_notice=str(error))
+        if action == 'queue':
+            added = 'queued' if result['queued'] else 'played'
+            raise web.HTTPSeeOther(URL('/').with_query(q=query, added=added).with_fragment('search'))
         raise web.HTTPSeeOther(f'/?playback={action}#playback')
 
     async def pairing_status(self, _):
@@ -195,7 +220,7 @@ class Admin:
         app.router.add_get('/api/state', self.state_json)
         app.router.add_get('/style.css', self.stylesheet)
         app.router.add_post(r'/pair/{member:[0-9]{17,20}}', self.start)
-        app.router.add_post(r'/playback/{member:[0-9]{17,20}}/{action:pause|resume|skip}', self.playback)
+        app.router.add_post(r'/playback/{member:[0-9]{17,20}}/{action:pause|resume|skip|queue}', self.playback)
         app.router.add_post('/cancel', self.cancel)
         app.router.add_get('/pairing-status', self.pairing_status)
         app.router.add_get(r'/pairing-desktop/{id:[a-f0-9-]{36}}/{asset:.+}', self.desktop)

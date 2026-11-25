@@ -15,7 +15,12 @@ body {
     radial-gradient(ellipse at 95% 25%, #2c235d 0%, transparent 48%);
 }
 main { max-width: 65rem; margin: auto; padding: 2.5rem 1.25rem; }
-.page-header, .profiles li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.page-header, .profiles li, .search-results li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
 .page-header { margin-bottom: 1.5rem; }
 h1, h2, h3 { margin: 0; }
 h1 {
@@ -29,6 +34,7 @@ h2 { font-size: 1.2rem; }
 h3 { font-size: 1rem; }
 a { color: #ffd4f6; text-underline-offset: .25em; }
 .dashboard { display: grid; grid-template-columns: 2fr 3fr; align-items: start; gap: 1rem; }
+.dashboard-left { display: grid; gap: 1rem; min-width: 0; }
 section {
   background: #20152f;
   border: 1px solid #60476f;
@@ -62,18 +68,31 @@ section {
 }
 .track-title { margin: .18rem 0; font-size: 1.15rem; font-weight: 750; }
 .queue-heading { margin-top: 1.35rem; }
-.clear-queue { margin-top: .65rem; }
-.clear-queue summary { cursor: pointer; color: #ffd4f6; width: fit-content; }
-.clear-queue p { margin: .55rem 0; }
 .track-list { padding-inline-start: 1.7rem; }
 .track-list li { padding: .55rem .3rem; border-bottom: 1px solid #503a60; }
 .track-list li::marker { color: #e8a5de; }
 .track-list small { display: block; margin-top: .2rem; }
+.queue-more summary { cursor: pointer; color: #ffd4f6; }
+.queue-more .track-list { max-height: 20rem; overflow-y: auto; }
 small { color: #dbc7e8; }
 .playback-notice { color: #ffe0ad; }
-.profiles { list-style: none; padding: 0; }
-.profiles li { border-bottom: 1px solid #503a60; padding: .75rem 0; }
-.profiles small { display: block; margin-top: .18rem; overflow-wrap: anywhere; }
+.profiles, .search-results { list-style: none; padding: 0; }
+.profiles li, .search-results li { border-bottom: 1px solid #503a60; padding: .75rem 0; }
+.profiles small, .search-results small { display: block; margin-top: .18rem; }
+.profiles li > div, .search-results li > div { min-width: 0; overflow-wrap: anywhere; }
+.search-form { margin-top: .9rem; }
+.search-controls { display: flex; gap: .5rem; margin-top: .35rem; }
+.search-controls input {
+  flex: 1;
+  width: 0;
+  min-width: 0;
+  border: 1px solid #806090;
+  border-radius: .55rem;
+  background: #160d22;
+  color: inherit;
+  padding: .45rem .65rem;
+  font: inherit;
+}
 button {
   display: inline-block;
   font: inherit;

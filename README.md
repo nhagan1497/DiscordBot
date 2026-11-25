@@ -36,14 +36,14 @@ The player exposes its PulseAudio monitor on a Unix socket in the `soloist-audio
 | `/music search query:<title or artist>` | Shows up to five tracks. Select one to play it or add it to the queue. |
 | `/music play query:<title and artist or link>` | Plays or queues the first match or the track in a Spotify link. |
 | `/music now` | Shows what is playing. |
-| `/music queue [page]` | Opens a paginated menu with queue sources, playback controls, and a shortcut to Spotify’s queue. |
+| `/music queue [page]` | Shows five upcoming tracks per page with queue sources, playback controls, and a Spotify search button. |
 | `/music pause`, `/music resume` | Pause or resume Spotify playback in your voice channel. |
 | `/music skip` | Advances the queue from your voice channel. |
 | `/music stop` | Ends the Discord voice session and stops Soloist. Host only. |
 
 Members in the active voice channel can request tracks, pause, resume, or skip. If the host leaves or moves channels, the session ends. A different member can start a new session with their own paired account.
 
-Administration’s **Playback** section provides the same controls and shows which upcoming tracks were queued manually, came from the album or playlist, or were added by Autoplay. To clear added tracks, open **Clear queue in Spotify** and use the host’s Spotify account. Soloist’s API has no queue deletion command. Select **Refresh** to read the latest playback state.
+In Administration, use **Search Spotify** to add a track to the active session. **Playback** shows the first five upcoming tracks and their sources. Expand **Remaining tracks** to see the rest, or select **Refresh** to update the playback state.
 
 ## Local troubleshooting
 

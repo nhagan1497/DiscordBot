@@ -26,7 +26,24 @@ PLAYBACK_ACTIONS = {'pause': 'Pause sent to Spotify.', 'resume': 'Resume sent to
 QUEUE_SOURCES = {'queue': 'Queued', 'context': 'Album or playlist', 'autoplay': 'Autoplay'}
 
 
+class QueueSearch(discord.ui.Modal, title='Search Spotify'):
+    def __init__(self, bot, voice):
+        super().__init__(timeout=300)
+        self.bot = bot
+        self.voice = voice
+        self.query = discord.ui.TextInput(max_length=160, placeholder='Enter a song title or artist')
+        self.add_item(discord.ui.Label(text='Song title or artist', component=self.query))
+
+    async def on_submit(self, interaction):
+        await self.bot.music.show_search(interaction, self.query.value, voice=self.voice)
+
+    async def on_error(self, interaction, error):
+        await self.bot.report_error(interaction, error)
+
+
 class QueueMenu(discord.ui.View):
+    page_size = 5
+
     def __init__(self, bot, page):
         super().__init__(timeout=300)
         self.bot = bot
@@ -35,13 +52,13 @@ class QueueMenu(discord.ui.View):
 
     def render(self, playback, notice=''):
         queue = playback['queue']
-        pages = max(1, (len(queue) + 9) // 10)
+        pages = max(1, (len(queue) + self.page_size - 1) // self.page_size)
         self.page = min(max(1, self.page), pages)
         self.previous.disabled = self.page == 1
         self.next_page.disabled = self.page == pages
-        offset = (self.page - 1) * 10
+        offset = (self.page - 1) * self.page_size
         lines = []
-        for index, item in enumerate(queue[offset:offset + 10], offset + 1):
+        for index, item in enumerate(queue[offset:offset + self.page_size], offset + 1):
             source = QUEUE_SOURCES.get(item.get('source'))
             name = discord.utils.escape_markdown(label(item))[:130]
             lines.append(f'{index}. {name}' + (f' · {source}' if source else ''))
@@ -57,9 +74,7 @@ class QueueMenu(discord.ui.View):
         await interaction.response.defer()
         try:
             async with self.bot.lock:
-                host = self.bot.active_host(interaction.user)
-                if self.bot.voice is not self.voice:
-                    raise Problem('That session ended. Open a new /music queue menu.', 409)
+                host = self.bot.active_host(interaction.user, voice=self.voice)
                 if action:
                     await self.bot.player(host, action, 'POST')
                 playback = await self.bot.player(host, 'playback')
@@ -83,6 +98,15 @@ class QueueMenu(discord.ui.View):
     async def refresh(self, interaction, _):
         await self.update(interaction)
 
+    @discord.ui.button(label='Search', style=discord.ButtonStyle.primary)
+    async def search(self, interaction, _):
+        try:
+            self.bot.active_host(interaction.user, voice=self.voice)
+        except Problem as error:
+            await self.bot.report_error(interaction, error)
+        else:
+            await interaction.response.send_modal(QueueSearch(self.bot, self.voice))
+
     @discord.ui.button(label='Pause', row=1)
     async def pause(self, interaction, _):
         await self.update(interaction, action='pause')
@@ -94,16 +118,6 @@ class QueueMenu(discord.ui.View):
     @discord.ui.button(label='Skip', row=1)
     async def skip(self, interaction, _):
         await self.update(interaction, action='skip')
-
-    @discord.ui.button(label='Clear queue in Spotify', row=1)
-    async def clear(self, interaction, _):
-        view = discord.ui.View()
-        view.add_item(discord.ui.Button(label='Open Spotify', url='https://open.spotify.com/'))
-        await interaction.response.send_message(
-            'On the host’s Spotify account, open **Queue → Clear queue**, then refresh here. '
-            'That clears added tracks. Tracks from the current album or playlist, and Autoplay recommendations, can still appear.',
-            ephemeral=True, view=view,
-        )
 
 
 class Catalog:
@@ -222,12 +236,14 @@ class Bot(discord.Client):
         except (ClientError, TimeoutError, ValueError) as error:
             raise Problem('Could not reach the Soloist player.') from error
 
-    def active_host(self, member):
+    def active_host(self, member, *, voice=None):
         if not self.host or not self.voice:
             raise Problem('Nobody is hosting yet. Join a voice channel and run `/music host` first.', 409)
         channel = getattr(getattr(member, 'voice', None), 'channel', None)
         if channel != self.voice.channel:
             raise Problem('Join the voice channel where the bot is playing to use this command.', 403)
+        if voice is not None and self.voice is not voice:
+            raise Problem('That session ended. Open a new queue or search menu.', 409)
         return self.host
 
     async def start_host(self, member):
@@ -309,9 +325,9 @@ class Music(app_commands.Group, name='music', description='Play and queue Spotif
         await self.bot.start_host(interaction.user)
         await interaction.followup.send(f'Voice session started on Discord Music {interaction.user.id}. Use /music play to request a track.', ephemeral=True)
 
-    async def add(self, interaction, track):
+    async def add(self, interaction, track, *, voice=None):
         async with self.bot.lock:
-            host = self.bot.active_host(interaction.user)
+            host = self.bot.active_host(interaction.user, voice=voice)
             result = await self.bot.player(host, 'queue', 'POST', track=track['uri'])
         action = 'Added to the Spotify queue' if result['queued'] else 'Sent play to Spotify'
         await interaction.followup.send(f'{action} · {label(track)}', ephemeral=True,
@@ -337,10 +353,17 @@ class Music(app_commands.Group, name='music', description='Play and queue Spotif
 
     @app_commands.command(description='Find songs by title and artist')
     async def search(self, interaction: discord.Interaction, query: app_commands.Range[str, 1, 160]):
-        await interaction.response.defer(ephemeral=True)
+        await self.show_search(interaction, query)
+
+    async def show_search(self, interaction, query, *, voice=None):
+        await interaction.response.defer(ephemeral=True, thinking=True)
         self.bot.enroll(interaction.user)
-        self.bot.active_host(interaction.user)
-        tracks = await self.bot.catalog.search(query.strip())
+        self.bot.active_host(interaction.user, voice=voice)
+        voice = self.bot.voice
+        query = query.strip()
+        if not query:
+            raise Problem('Enter a song title or artist.', 400)
+        tracks = await self.bot.catalog.search(query)
         if not tracks:
             raise Problem('No matching tracks found. Try adding the artist.', 404)
         select = discord.ui.Select(placeholder='Choose a track', options=[
@@ -349,9 +372,10 @@ class Music(app_commands.Group, name='music', description='Play and queue Spotif
         ])
 
         async def selected(selection):
+            track = tracks[int(selection.data['values'][0])]
             await selection.response.defer(ephemeral=True, thinking=True)
             try:
-                await self.add(selection, tracks[int(select.values[0])])
+                await self.add(selection, track, voice=voice)
             except Problem as error:
                 await selection.followup.send(str(error), ephemeral=True)
             else:

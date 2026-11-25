@@ -2,6 +2,12 @@
 {% macro track_name(track) -%}
   {{ track.title }}{% if track.artist %} — {{ track.artist }}{% endif %}
 {%- endmacro %}
+{% macro queue_items(tracks) %}
+  {% set sources = {'queue': 'Queued', 'context': 'Album or playlist', 'autoplay': 'Autoplay'} %}
+  {% for track in tracks %}
+  <li><div>{{ track_name(track) }}{% if track.source in sources %}<small>{{ sources[track.source] }}</small>{% endif %}</div></li>
+  {% endfor %}
+{% endmacro %}
 {% block content %}
 <header class="page-header">
   <h1>Administration</h1>
@@ -18,27 +24,62 @@
     <form method="post" action="/cancel"><button class="secondary">Cancel pairing</button></form>
   </section>
   {% endif %}
-  <section>
-    <h2>Spotify profiles</h2>
-    <ul class="profiles">
-      {% for profile in state.profiles %}
-      <li>
-        <div>
-          <strong>{{ profile.name }}</strong>
-          <small>{{ 'Paired' if profile.paired else 'Unpaired' }} · {{ profile.id }}</small>
+  <div class="dashboard-left">
+    <section id="search">
+      <h2>Search Spotify</h2>
+      <form method="get" action="/#search" class="search-form">
+        <label for="spotify-query">Song title or artist</label>
+        <div class="search-controls">
+          <input id="spotify-query" name="q" type="search" maxlength="160" value="{{ search_query }}" required>
+          <button>Search</button>
         </div>
-        <form method="post" action="/pair/{{ profile.id }}">
-          <button{% if state.pairing or (state.host and state.host.id == profile.id) %} disabled{% endif %}>{{ 'Pair again' if profile.paired else 'Pair' }}</button>
-        </form>
-      </li>
-      {% endfor %}
-    </ul>
-    {% if not state.profiles %}<p>Use /music status in Discord to create a profile.</p>{% endif %}
-  </section>
+      </form>
+      {% if not state.host %}<p>Start a session with <code>/music host</code> in Discord to add tracks.</p>{% endif %}
+      {% if search_notice %}<p role="status" class="playback-notice">{{ search_notice }}</p>{% endif %}
+      {% if search_error %}
+      <p role="status" class="playback-notice">{{ search_error }}</p>
+      {% elif tracks %}
+      <ul class="search-results">
+        {% for track in tracks %}
+        <li>
+          <div><strong>{{ track.title }}</strong>{% if track.artist %}<small>{{ track.artist }}</small>{% endif %}</div>
+          {% if state.host %}
+          <form method="post" action="/playback/{{ state.host.id }}/queue">
+            <input type="hidden" name="track" value="{{ track.uri }}">
+            <input type="hidden" name="q" value="{{ search_query }}">
+            <button class="secondary" aria-label="Add {{ track_name(track) }}">Add</button>
+          </form>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif search_query %}<p>No matching tracks found. Try adding the artist.</p>{% endif %}
+    </section>
+    <section>
+      <h2>Spotify profiles</h2>
+      <ul class="profiles">
+        {% for profile in state.profiles %}
+        <li>
+          <div>
+            <strong>{{ profile.name }}</strong>
+            <small>{{ 'Paired' if profile.paired else 'Unpaired' }} · {{ profile.id }}</small>
+          </div>
+          <form method="post" action="/pair/{{ profile.id }}">
+            <button{% if state.pairing or (state.host and state.host.id == profile.id) %} disabled{% endif %}>{{ 'Pair again' if profile.paired else 'Pair' }}</button>
+          </form>
+        </li>
+        {% endfor %}
+      </ul>
+      {% if not state.profiles %}<p>Use /music status in Discord to create a profile.</p>{% endif %}
+    </section>
+  </div>
   <section class="playback" id="playback">
     <div class="section-heading">
       <h2>Playback</h2>
-      <form method="get" action="/#playback"><button class="secondary">Refresh</button></form>
+      <form method="get" action="/#playback">
+        {% if search_query %}<input type="hidden" name="q" value="{{ search_query }}">{% endif %}
+        <button class="secondary">Refresh</button>
+      </form>
     </div>
     <div class="now-playing">
       <div class="record" aria-hidden="true"></div>
@@ -61,20 +102,14 @@
       <h3>Queue</h3>
       {% if state.queue %}<small>{{ state.queue|length }} upcoming</small>{% endif %}
     </div>
-    {% if state.host %}
-    <details class="clear-queue">
-      <summary>Clear queue in Spotify</summary>
-      <p>On the host’s Spotify account, open Queue and select Clear queue. Tracks from the current album or playlist and Autoplay can still appear.</p>
-      <a href="https://open.spotify.com/" target="_blank" rel="noopener">Open Spotify</a>
+    {% if state.queue %}
+    <ol class="track-list">{{ queue_items(state.queue[:5]) }}</ol>
+    {% if state.queue|length > 5 %}
+    <details class="queue-more">
+      <summary>Remaining tracks ({{ state.queue|length - 5 }})</summary>
+      <ol class="track-list" start="6" tabindex="0" aria-label="Remaining queue tracks">{{ queue_items(state.queue[5:]) }}</ol>
     </details>
     {% endif %}
-    {% if state.queue %}
-    {% set sources = {'queue': 'Queued', 'context': 'Album or playlist', 'autoplay': 'Autoplay'} %}
-    <ol class="track-list">
-      {% for track in state.queue %}
-      <li><div>{{ track_name(track) }}{% if track.source in sources %}<small>{{ sources[track.source] }}</small>{% endif %}</div></li>
-      {% endfor %}
-    </ol>
     {% else %}<p>The queue is empty.</p>{% endif %}
   </section>
 </div>
