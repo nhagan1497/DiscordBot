@@ -53,4 +53,13 @@ docker compose logs --tail=100 bot player pairing
 
 If commands don’t appear, check the bot logs for registration and verify the installation and permissions in Discord. If the desktop doesn’t open, check `pairing` and `bot`. If the device picker is empty, check `player` for pairing errors and verify `SOLOIST_API_KEY` in `.env`. If the profile pairs but audio is silent, check `player` and `bot` immediately after `/music play`.
 
-The local admin port binds only to `127.0.0.1`. For Proxmox, change the port mapping in Compose to the bot LXC's private address and restrict access to that port to Caddy. Caddy handles authentication for the entire admin site, including `/api/*` and the WebSocket connection under `/pairing-desktop/*`. Keep the player and pairing services unpublished.
+## Deploy on Proxmox
+
+Use the same Git checkout, Compose file, and `.env` keys in the bot LXC. The admin port listens on IPv4 port `3000` so Caddy can reach it.
+
+```bash
+install -d -o 1000 -g 1000 runtime/soloist-data
+docker compose up -d --build
+```
+
+Reserve `192.168.1.126` for the bot LXC and restrict access to TCP port `3000` to the Caddy LXC. Point Caddy at `192.168.1.126:3000`. Caddy handles authentication for the entire admin site, including `/api/*` and the WebSocket connection under `/pairing-desktop/*`. The player and pairing services stay on the Compose network.
